@@ -47,7 +47,7 @@ fn show(reply: Result<Reply, Error>) -> ExitCode {
 
 fn emit(lines: impl Iterator<Item = String>) -> ExitCode {
     let stdout = io::stdout();
-    let mut out = stdout.lock();
+    let mut out = io::BufWriter::new(stdout.lock());
 
     for line in lines {
         // `xedit list | head` closes the pipe on us, which is not an error

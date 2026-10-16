@@ -1,6 +1,8 @@
 use std::fmt;
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
+use std::io::Read;
 
 use xedit_core::{Address, Region};
 
@@ -18,31 +20,79 @@ impl fmt::Display for Proc {
 
 /// Every numeric directory under /proc is a running process.
 pub fn list() -> Vec<Proc> {
-    let mut procs = Vec::new();
+    let mut pids: Vec<u32> = Vec::with_capacity(512);
 
     let Ok(entries) = fs::read_dir("/proc") else {
-        return procs;
+        return Vec::new();
     };
 
     for entry in entries.flatten() {
-        let pid: u32 = match entry.file_name().to_string_lossy().parse() {
-            Ok(pid) => pid,
-            Err(_) => continue,
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
         };
+        pids.push(pid);
+    }
 
-        // process can die between the readdir and this read
-        let Ok(comm) = fs::read_to_string(format!("/proc/{pid}/comm")) else {
+    if pids.is_empty() {
+        return Vec::new();
+    }
+
+    pids.sort_unstable();
+
+    // reading 400+ tiny files is all syscalls, so spread it over the cores
+    let lanes = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(8);
+    let chunk = pids.len().div_ceil(lanes);
+
+    let mut procs = Vec::with_capacity(pids.len());
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = pids
+            .chunks(chunk)
+            .map(|slice| scope.spawn(move || read_names(slice)))
+            .collect();
+
+        for h in handles {
+            procs.extend(h.join().unwrap_or_default());
+        }
+    });
+
+    procs.sort_unstable_by_key(|p| p.pid);
+    procs
+}
+
+fn read_names(pids: &[u32]) -> Vec<Proc> {
+    // reused per lane, otherwise we allocate a path and a string per process
+    let mut path = String::with_capacity(24);
+    let mut buf = [0u8; 64];
+    let mut out = Vec::with_capacity(pids.len());
+
+    for &pid in pids {
+        path.clear();
+        let _ = write!(path, "/proc/{pid}/comm");
+
+        // process can die between the readdir and this open
+        let Ok(mut file) = fs::File::open(&path) else {
             continue;
         };
 
-        procs.push(Proc {
+        // comm is at most 16 bytes, one read is enough and skips the EOF read
+        let Ok(n) = file.read(&mut buf) else {
+            continue;
+        };
+
+        let end = buf[..n].iter().position(|&b| b == b'\n').unwrap_or(n);
+        let Ok(name) = std::str::from_utf8(&buf[..end]) else {
+            continue;
+        };
+
+        out.push(Proc {
             pid,
-            name: comm.trim().to_string(),
+            name: name.to_string(),
         });
     }
 
-    procs.sort_by_key(|p| p.pid);
-    procs
+    out
 }
 
 pub fn regions(pid: u32) -> io::Result<Vec<Region>> {

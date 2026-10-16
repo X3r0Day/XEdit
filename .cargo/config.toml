@@ -1,0 +1,3 @@
+[alias]
+# Portable static binary. Also the smallest startup, so use it for the CLI.
+release-static = "build --release --target x86_64-unknown-linux-musl"

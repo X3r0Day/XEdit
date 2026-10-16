@@ -18,3 +18,10 @@ cargo build
 cargo test
 cargo run -p xedit-cli -- list
 ```
+
+For a portable static binary (no libc dependency, and the smallest startup):
+
+```sh
+rustup target add x86_64-unknown-linux-musl
+cargo release-static
+```
