@@ -1,0 +1,16 @@
+[package]
+name = "xedit-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The xedit binary"
+
+[[bin]]
+name = "xedit"
+path = "src/main.rs"
+
+[dependencies]
+xedit-core.workspace = true
+xedit-engine.workspace = true
+xedit-host.workspace = true
+xedit-xtl.workspace = true

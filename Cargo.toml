@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/engine",
+    "crates/xtl",
+    "crates/host",
+    "crates/tui",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+xedit-core = { path = "crates/core" }
+xedit-engine = { path = "crates/engine" }
+xedit-xtl = { path = "crates/xtl" }
+xedit-host = { path = "crates/host" }
+xedit-tui = { path = "crates/tui" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+
+# pulled in when the milestone that needs them lands
+nix = { version = "0.29", features = ["process", "ptrace", "signal"] }
+ratatui = "0.28"
+crossterm = "0.28"
+
+[profile.release]
+lto = true
+strip = true
+panic = "abort"

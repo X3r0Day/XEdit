@@ -1,0 +1,13 @@
+[package]
+name = "xedit-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The front desk: checks permissions and routes every request"
+
+[dependencies]
+xedit-core.workspace = true
+xedit-engine.workspace = true
+xedit-xtl.workspace = true
+serde.workspace = true
+serde_json.workspace = true

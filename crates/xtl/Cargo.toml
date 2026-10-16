@@ -1,0 +1,9 @@
+[package]
+name = "xedit-xtl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The front desk contract: requests, events, errors, addon manifests"
+
+[dependencies]
+serde.workspace = true

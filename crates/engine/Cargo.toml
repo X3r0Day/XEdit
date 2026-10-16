@@ -1,0 +1,9 @@
+[package]
+name = "xedit-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The worker: attaches to processes, reads and writes memory"
+
+[dependencies]
+xedit-core.workspace = true

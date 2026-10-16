@@ -1,0 +1,9 @@
+[package]
+name = "xedit-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The terminal screen"
+
+[dependencies]
+xedit-host.workspace = true
