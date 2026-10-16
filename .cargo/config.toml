@@ -1,3 +1,10 @@
 [alias]
 # Portable static binary. Also the smallest startup, so use it for the CLI.
 release-static = "build --release --target x86_64-unknown-linux-musl"
+
+# Uncomment to compile for your own CPU (AVX2, BMI2, FMA on a v3 chip).
+# Worth it for compute-heavy code like the scan engine, and pointless for
+# syscall-bound commands. The binary then won't run on older machines, which is
+# why the engine does runtime feature detection instead of relying on this.
+# [build]
+# rustflags = ["-C", "target-cpu=native"]
