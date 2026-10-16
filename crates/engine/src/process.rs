@@ -39,10 +39,11 @@ pub fn list() -> Vec<Proc> {
 
     pids.sort_unstable();
 
-    // reading 400+ tiny files is all syscalls, so spread it over the cores
+    // reading 400+ tiny files is all syscalls, so split it over a few cores.
+    // measured: 3 is the knee, more threads just add spawn and join cost
     let lanes = std::thread::available_parallelism()
-        .map_or(4, |n| n.get())
-        .min(8);
+        .map_or(3, |n| n.get())
+        .min(3);
     let chunk = pids.len().div_ceil(lanes);
 
     let mut procs = Vec::with_capacity(pids.len());
