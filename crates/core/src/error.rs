@@ -14,6 +14,12 @@ pub enum Error {
     #[error("permission denied: {0}")]
     Denied(String),
 
+    #[error("bad request: {0}")]
+    BadRequest(String),
+
+    #[error("request too large: {0} bytes")]
+    TooLarge(u64),
+
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }

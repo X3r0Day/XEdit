@@ -7,3 +7,5 @@ description = "The worker: attaches to processes, reads and writes memory"
 
 [dependencies]
 xedit-core.workspace = true
+libc.workspace = true
+memchr.workspace = true

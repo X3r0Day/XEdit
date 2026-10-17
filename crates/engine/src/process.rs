@@ -10,11 +10,38 @@ use xedit_core::{Address, Region};
 pub struct Proc {
     pub pid: u32,
     pub name: String,
+    pub cmdline: Option<String>,
+}
+
+impl Proc {
+    /// Matches the short name, the full command line, or an exact pid.
+    pub fn matches(&self, needle: &str) -> bool {
+        if let Ok(pid) = needle.parse::<u32>() {
+            if self.pid == pid {
+                return true;
+            }
+        }
+
+        let needle = needle.to_lowercase();
+        self.name.to_lowercase().contains(&needle)
+            || self
+                .cmdline
+                .as_deref()
+                .is_some_and(|c| c.to_lowercase().contains(&needle))
+    }
+
+    /// The command line, or a bracketed name for kernel threads, which have none.
+    pub fn command(&self) -> String {
+        match self.cmdline.as_deref() {
+            Some(c) if !c.is_empty() => c.to_string(),
+            _ => format!("[{}]", self.name),
+        }
+    }
 }
 
 impl fmt::Display for Proc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:>7}  {}", self.pid, self.name)
+        write!(f, "{:>7}  {}", self.pid, self.command())
     }
 }
 
@@ -50,7 +77,7 @@ pub fn list() -> Vec<Proc> {
     std::thread::scope(|scope| {
         let handles: Vec<_> = pids
             .chunks(chunk)
-            .map(|slice| scope.spawn(move || read_names(slice)))
+            .map(|slice| scope.spawn(move || read_procs(slice)))
             .collect();
 
         for h in handles {
@@ -62,10 +89,11 @@ pub fn list() -> Vec<Proc> {
     procs
 }
 
-fn read_names(pids: &[u32]) -> Vec<Proc> {
+fn read_procs(pids: &[u32]) -> Vec<Proc> {
     // reused per lane, otherwise we allocate a path and a string per process
     let mut path = String::with_capacity(24);
-    let mut buf = [0u8; 64];
+    let mut comm = [0u8; 64];
+    let mut argv = Vec::with_capacity(512);
     let mut out = Vec::with_capacity(pids.len());
 
     for &pid in pids {
@@ -78,22 +106,67 @@ fn read_names(pids: &[u32]) -> Vec<Proc> {
         };
 
         // comm is at most 16 bytes, one read is enough and skips the EOF read
-        let Ok(n) = file.read(&mut buf) else {
+        let Ok(n) = file.read(&mut comm) else {
             continue;
         };
 
-        let end = buf[..n].iter().position(|&b| b == b'\n').unwrap_or(n);
-        let Ok(name) = std::str::from_utf8(&buf[..end]) else {
+        let end = comm[..n].iter().position(|&b| b == b'\n').unwrap_or(n);
+        let Ok(name) = std::str::from_utf8(&comm[..end]) else {
             continue;
         };
+
+        path.clear();
+        let _ = write!(path, "/proc/{pid}/cmdline");
+        let cmdline = read_cmdline(&path, &mut argv);
 
         out.push(Proc {
             pid,
             name: name.to_string(),
+            cmdline,
         });
     }
 
     out
+}
+
+/// argv, which the kernel hands over NUL separated. Empty for kernel threads.
+/// Reads into a reused buffer, so the usual case is one read with no allocation.
+fn read_cmdline(path: &str, buf: &mut Vec<u8>) -> Option<String> {
+    let mut file = fs::File::open(path).ok()?;
+    buf.clear();
+
+    loop {
+        let start = buf.len();
+        buf.resize(start + 512, 0);
+        match file.read(&mut buf[start..]) {
+            Ok(0) => {
+                buf.truncate(start);
+                break;
+            }
+            Ok(n) => {
+                buf.truncate(start + n);
+                if n < 512 {
+                    break;
+                }
+            }
+            Err(_) => return None,
+        }
+    }
+
+    Some(join_cmdline(buf.as_slice()))
+}
+
+fn join_cmdline(bytes: &[u8]) -> String {
+    let mut line = String::with_capacity(bytes.len());
+
+    for arg in bytes.split(|&b| b == 0).filter(|a| !a.is_empty()) {
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        line.push_str(&String::from_utf8_lossy(arg));
+    }
+
+    line
 }
 
 pub fn regions(pid: u32) -> io::Result<Vec<Region>> {
@@ -175,5 +248,29 @@ mod tests {
     fn list_finds_this_process() {
         let me = std::process::id();
         assert!(list().iter().any(|p| p.pid == me));
+    }
+
+    #[test]
+    fn cmdline_is_joined_with_spaces() {
+        assert_eq!(
+            join_cmdline(b"python3\0test/coins.py\0"),
+            "python3 test/coins.py"
+        );
+        assert_eq!(join_cmdline(b"/usr/bin/sleep\0\0"), "/usr/bin/sleep");
+        assert_eq!(join_cmdline(b""), "");
+    }
+
+    #[test]
+    fn matches_name_cmdline_and_pid() {
+        let p = Proc {
+            pid: 42,
+            name: "python3".to_string(),
+            cmdline: Some("python3 test/coins.py".to_string()),
+        };
+
+        assert!(p.matches("coins"));
+        assert!(p.matches("Python"));
+        assert!(p.matches("42"));
+        assert!(!p.matches("firefox"));
     }
 }
