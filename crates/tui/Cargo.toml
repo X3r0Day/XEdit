@@ -6,4 +6,9 @@ license.workspace = true
 description = "The terminal screen"
 
 [dependencies]
+xedit-core.workspace = true
+xedit-engine.workspace = true
 xedit-host.workspace = true
+xedit-xtl.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
