@@ -14,3 +14,4 @@ xedit-core.workspace = true
 xedit-engine.workspace = true
 xedit-host.workspace = true
 xedit-xtl.workspace = true
+xedit-tui.workspace = true
